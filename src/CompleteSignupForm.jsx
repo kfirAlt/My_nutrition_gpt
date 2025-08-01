@@ -10,7 +10,8 @@ function CompleteSignupForm({ initialData, onBack }) {
     age: '',
     gender: '',
     height: '',
-    weight: ''
+    weight: '',
+    activityLevel: ''
   })
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
@@ -68,6 +69,41 @@ function CompleteSignupForm({ initialData, onBack }) {
         setMessage(`Database Error: ${userError.message}`)
         setLoading(false)
         return
+      }
+
+      // Insert user settings into UserSettings table
+      const currentTimestamp = new Date().toISOString()
+      const { data: settingsData, error: settingsError } = await supabase
+        .from('UserSettings')
+        .insert([
+          {
+            user_id: authData.user.id,
+            activity_level: formData.activityLevel,
+            created_at: currentTimestamp,
+            updated_at: currentTimestamp
+          }
+        ])
+
+      if (settingsError) {
+        setMessage(`UserSettings Error: ${settingsError.message}`)
+        setLoading(false)
+        return
+      }
+
+      // Send POST request to webhook endpoint
+      try {
+        await fetch('https://n8n-4mn8.onrender.com/webhook/calculate_bmr_tdee', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            user_id: authData.user.id
+          })
+        })
+      } catch (error) {
+        // Fire and forget - don't handle errors
+        console.log('Webhook request failed:', error)
       }
 
       setMessage('Account created successfully! Please check your email for verification.')
@@ -234,6 +270,27 @@ function CompleteSignupForm({ initialData, onBack }) {
               required
             />
           </div>
+        </div>
+
+        <div>
+          <label htmlFor="activityLevel" className="block text-sm font-medium text-gray-700 mb-1">
+            Activity Level
+          </label>
+          <select
+            id="activityLevel"
+            name="activityLevel"
+            value={formData.activityLevel}
+            onChange={handleInputChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
+          >
+            <option value="">Select Activity Level</option>
+            <option value="sedentary">Sedentary</option>
+            <option value="light">Light</option>
+            <option value="moderate">Moderate</option>
+            <option value="active">Active</option>
+            <option value="very_active">Very Active</option>
+          </select>
         </div>
 
         <div className="flex space-x-4 pt-4">
