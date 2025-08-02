@@ -30,27 +30,34 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {currentView === 'auth' ? (
-          <AuthForm 
-            onNavigateToSignup={handleNavigateToSignup} 
-            onLoginSuccess={handleLoginSuccess}
-          />
-        ) : currentView === 'signup' ? (
-          <CompleteSignupForm 
-            initialData={signupData} 
-            onBack={handleBackToAuth} 
-          />
-        ) : currentView === 'home' ? (
-          <HomePage 
-            user={user} 
-            onLogout={handleLogout} 
-          />
-        ) : null}
-      </div>
+    <div className="min-h-screen bg-green-50">
+      {currentView === 'auth' ? (
+        <AuthForm 
+          onNavigateToSignup={handleNavigateToSignup} 
+          onLoginSuccess={handleLoginSuccess}
+        />
+      ) : currentView === 'signup' ? (
+        <div className="min-h-screen flex items-center justify-center p-4">
+          <div className="w-full max-w-3xl">
+            <CompleteSignupForm 
+              initialData={signupData} 
+              onBack={handleBackToAuth} 
+            />
+          </div>
+        </div>
+      ) : currentView === 'home' ? (
+        <div className="min-h-screen flex items-center justify-center p-4">
+          <div className="w-full max-w-3xl">
+            <HomePage 
+              user={user} 
+              onLogout={handleLogout} 
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   )
+  
 }
 
 export default App
