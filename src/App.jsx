@@ -51,13 +51,11 @@ function App() {
           onLoginSuccess={handleLoginSuccess}
         />
       ) : currentView === 'signup' ? (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-          <div className="w-full max-w-md">
-            <CompleteSignupForm 
-              initialData={signupData} 
-              onBack={handleBackToAuth} 
-            />
-          </div>
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+          <CompleteSignupForm 
+            initialData={signupData} 
+            onBack={handleBackToAuth} 
+          />
         </div>
       ) : currentView === 'home' ? (
         <div className="min-h-screen bg-gradient-to-r from-green-50 to-green-100">
