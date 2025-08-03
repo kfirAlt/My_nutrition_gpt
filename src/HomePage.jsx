@@ -1,7 +1,7 @@
 import { supabase } from './supabaseClient.js'
 import { useEffect, useState } from 'react'
 
-function HomePage({ user, onLogout, onNavigateToChat, onNavigateToHistory }) {
+function HomePage({ user, onLogout, onNavigateToChat, onNavigateToHistory, onNavigateToGraphs, onNavigateToSettings }) {
   const [firstName, setFirstName] = useState('')
 
   useEffect(() => {
@@ -69,9 +69,9 @@ function HomePage({ user, onLogout, onNavigateToChat, onNavigateToHistory }) {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mt-auto">
               {[
-                { title: 'Graphs', desc: 'Watch your progress', onClick: () => {} },
+                { title: 'Graphs', desc: 'Watch your progress', onClick: onNavigateToGraphs },
                 { title: 'History', desc: 'History of your meals', onClick: onNavigateToHistory },
-                { title: 'Settings', desc: 'Watch or change your settings', onClick: () => {} },
+                { title: 'Settings', desc: 'Watch or change your settings', onClick: onNavigateToSettings },
               ].map((item, i) => (
                 <div key={i} className="text-center px-6">
                   <button 

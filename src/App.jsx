@@ -4,6 +4,8 @@ import CompleteSignupForm from './CompleteSignupForm.jsx'
 import HomePage from './HomePage.jsx'
 import ChatPage from './ChatPage.jsx'
 import HistoryPage from './HistoryPage.jsx'
+import GraphsPage from './GraphsPage.jsx'
+import SettingsPage from './SettingsPage.jsx'
 import './index.css'
 
 function App() {
@@ -39,6 +41,14 @@ function App() {
     setCurrentView('history')
   }
 
+  const handleNavigateToGraphs = () => {
+    setCurrentView('graphs')
+  }
+
+  const handleNavigateToSettings = () => {
+    setCurrentView('settings')
+  }
+
   const handleBackToHome = () => {
     setCurrentView('home')
   }
@@ -64,6 +74,8 @@ function App() {
             onLogout={handleLogout}
             onNavigateToChat={handleNavigateToChat}
             onNavigateToHistory={handleNavigateToHistory}
+            onNavigateToGraphs={handleNavigateToGraphs}
+            onNavigateToSettings={handleNavigateToSettings}
           />
         </div>
       ) : currentView === 'chat' ? (
@@ -72,6 +84,16 @@ function App() {
         />
       ) : currentView === 'history' ? (
         <HistoryPage 
+          user={user}
+          onBack={handleBackToHome}
+        />
+      ) : currentView === 'graphs' ? (
+        <GraphsPage 
+          user={user}
+          onBack={handleBackToHome}
+        />
+      ) : currentView === 'settings' ? (
+        <SettingsPage 
           user={user}
           onBack={handleBackToHome}
         />
