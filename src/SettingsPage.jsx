@@ -10,13 +10,11 @@ function SettingsPage({ user, onBack }) {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
 
-  // Fetch user data and settings
   const fetchUserData = async () => {
     if (!user?.id) return
-
     setLoading(true)
+
     try {
-      // Fetch user data
       const { data: userInfo, error: userError } = await supabase
         .from('User')
         .select('*')
@@ -24,11 +22,10 @@ function SettingsPage({ user, onBack }) {
         .single()
 
       if (userError) {
-        console.error('Error fetching user data:', userError)
+        console.error('Error fetching user data:', userError.message)
         return
       }
 
-      // Fetch user settings
       const { data: settings, error: settingsError } = await supabase
         .from('UserSettings')
         .select('*')
@@ -36,14 +33,14 @@ function SettingsPage({ user, onBack }) {
         .single()
 
       if (settingsError) {
-        console.error('Error fetching user settings:', settingsError)
+        console.error('Error fetching user settings:', settingsError.message)
         return
       }
 
       setUserData(userInfo)
       setUserSettings(settings)
     } catch (error) {
-      console.error('Error:', error)
+      console.error('Unexpected error:', error.message)
     } finally {
       setLoading(false)
     }
@@ -63,36 +60,70 @@ function SettingsPage({ user, onBack }) {
     setEditValue('')
   }
 
-  const handleSave = async (field) => {
-    if (!confirm('Are you sure you want to update this field?')) {
-      return
+  const isMetabolicField = (field) => {
+    return ['weight', 'height', 'age', 'activity_level'].includes(field)
+  }
+
+  const waitForDatabaseUpdate = async (delay = 1000) => {
+    return new Promise(resolve => setTimeout(resolve, delay))
+  }
+
+  const verifyMetabolicCalculationsUpdated = async (originalBMR, originalTDEE, maxRetries = 5) => {
+    for (let i = 0; i < maxRetries; i++) {
+      await waitForDatabaseUpdate(1000)
+      const { data: settings, error } = await supabase
+        .from('UserSettings')
+        .select('bmr, tdee')
+        .eq('user_id', user.id)
+        .single()
+
+      if (!error && settings) {
+        if (settings.bmr !== originalBMR || settings.tdee !== originalTDEE) {
+          return true
+        }
+      }
     }
+    return false
+  }
+
+  const handleSave = async (field) => {
+    if (!confirm('Are you sure you want to update this field?')) return
 
     setSaving(true)
     setMessage('')
 
     try {
       const currentTimestamp = new Date().toISOString()
+      const isMetabolic = isMetabolicField(field)
 
-      // Determine which table to update based on the field
+      let originalBMR = null
+      let originalTDEE = null
+      if (isMetabolic && userSettings) {
+        originalBMR = userSettings.bmr
+        originalTDEE = userSettings.tdee
+      }
+
       const isUserField = ['first_name', 'last_name', 'email', 'password', 'age', 'gender', 'height', 'weight'].includes(field)
-      
+
       if (isUserField) {
+        const updateData = {
+          [field]: ['age', 'height'].includes(field) ? parseInt(editValue) :
+                   field === 'weight' ? parseFloat(editValue) : editValue,
+          updated_at: currentTimestamp
+        }
+
         const { error } = await supabase
           .from('User')
-          .update({
-            [field]: editValue,
-            updated_at: currentTimestamp
-          })
+          .update(updateData)
           .eq('id', user.id)
 
         if (error) {
+          console.error('Update error:', error.message)
           setMessage(`Error updating ${field}: ${error.message}`)
           setSaving(false)
           return
         }
       } else {
-        // Update UserSettings table
         const { error } = await supabase
           .from('UserSettings')
           .update({
@@ -102,22 +133,50 @@ function SettingsPage({ user, onBack }) {
           .eq('user_id', user.id)
 
         if (error) {
+          console.error('Update settings error:', error.message)
           setMessage(`Error updating ${field}: ${error.message}`)
           setSaving(false)
           return
         }
       }
 
-      // Refresh data
+      await waitForDatabaseUpdate(500)
+
+      if (isMetabolic) {
+        setMessage('Updating calculations...')
+        try {
+          const response = await fetch('https://n8n-4mn8.onrender.com/webhook/calculate_bmr_tdee', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: user.id })
+          })
+
+          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+
+          const calculationsUpdated = await verifyMetabolicCalculationsUpdated(originalBMR, originalTDEE)
+
+          if (!calculationsUpdated) {
+            console.warn('BMR/TDEE calculations may not have been updated')
+            setMessage('Field updated, but calculations may still be processing...')
+          } else {
+            setMessage('Field and calculations updated successfully!')
+          }
+
+        } catch (error) {
+          console.error('Webhook request failed:', error.message)
+          setMessage('Field updated, but calculation automation failed. Please try again.')
+        }
+      } else {
+        setMessage('Field updated successfully!')
+      }
+
       await fetchUserData()
       setEditingField(null)
       setEditValue('')
-      setMessage('Field updated successfully!')
-      
-      // Clear success message after 3 seconds
       setTimeout(() => setMessage(''), 3000)
+
     } catch (error) {
-      setMessage(`Error: ${error.message}`)
+      setMessage(`Unexpected error: ${error.message}`)
     } finally {
       setSaving(false)
     }
@@ -127,6 +186,7 @@ function SettingsPage({ user, onBack }) {
     const isEditing = editingField === field
     const isReadOnly = field === 'bmr' || field === 'tdee'
 
+
     return (
       <div key={field} className="mb-6">
         <label className="block text-lg font-bold mb-2 text-gray-700">
@@ -135,13 +195,41 @@ function SettingsPage({ user, onBack }) {
         <div className="flex items-center space-x-3">
           {isEditing ? (
             <>
-              <input
-                type={type}
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-lg"
-                placeholder={label}
-              />
+              {field === 'activity_level' ? (
+                <select
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-lg"
+                >
+                  <option value="">Select Activity Level</option>
+                  <option value="sedentary">Sedentary</option>
+                  <option value="light">Light</option>
+                  <option value="moderate">Moderate</option>
+                  <option value="active">Active</option>
+                  <option value="very_active">Very Active</option>
+                </select>
+              ) : field === 'gender' ? (
+                <select
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-lg"
+                >
+                  <option value="">Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+              ) : (
+                <input
+                  type={type}
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-lg"
+                  placeholder={label}
+                  min={field === 'age' ? 1 : undefined}
+                  max={field === 'age' ? 120 : field === 'height' ? 250 : field === 'weight' ? 300 : undefined}
+                  step={field === 'weight' ? 0.1 : undefined}
+                />
+              )}
               <button
                 onClick={() => handleSave(field)}
                 disabled={saving}
@@ -234,7 +322,7 @@ function SettingsPage({ user, onBack }) {
         <div className="bg-white rounded-2xl shadow-xl p-10 md:p-12">
           {message && (
             <div className={`mb-8 p-4 rounded-lg ${
-              message.includes('Error')
+              message.includes('Error') || message.includes('failed')
                 ? 'bg-red-100 text-red-700 border border-red-200'
                 : 'bg-green-100 text-green-700 border border-green-200'
             }`}>
@@ -278,4 +366,4 @@ function SettingsPage({ user, onBack }) {
   )
 }
 
-export default SettingsPage 
+export default SettingsPage

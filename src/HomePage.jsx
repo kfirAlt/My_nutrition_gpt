@@ -6,11 +6,15 @@ function HomePage({ user, onLogout, onNavigateToChat, onNavigateToHistory, onNav
 
   useEffect(() => {
     const fetchFirstName = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('User')
         .select('first_name')
         .eq('id', user.id)
         .single()
+
+      if (error) {
+        console.error("Error fetching first name:", error.message)
+      }
 
       if (data?.first_name) {
         setFirstName(data.first_name)

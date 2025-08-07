@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from './supabaseClient.js'
 import AuthForm from './AuthForm.jsx'
 import CompleteSignupForm from './CompleteSignupForm.jsx'
 import HomePage from './HomePage.jsx'
@@ -12,6 +13,17 @@ function App() {
   const [currentView, setCurrentView] = useState('auth')
   const [signupData, setSignupData] = useState(null)
   const [user, setUser] = useState(null)
+
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data, error } = await supabase.auth.getSession()
+      if (data?.session?.user) {
+        setUser(data.session.user)
+        setCurrentView('home')
+      }
+    }
+    checkSession()
+  }, [])
 
   const handleNavigateToSignup = (data) => {
     setSignupData(data)
@@ -28,49 +40,36 @@ function App() {
     setCurrentView('home')
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
     setUser(null)
     setCurrentView('auth')
   }
 
-  const handleNavigateToChat = () => {
-    setCurrentView('chat')
-  }
-
-  const handleNavigateToHistory = () => {
-    setCurrentView('history')
-  }
-
-  const handleNavigateToGraphs = () => {
-    setCurrentView('graphs')
-  }
-
-  const handleNavigateToSettings = () => {
-    setCurrentView('settings')
-  }
-
-  const handleBackToHome = () => {
-    setCurrentView('home')
-  }
+  const handleNavigateToChat = () => setCurrentView('chat')
+  const handleNavigateToHistory = () => setCurrentView('history')
+  const handleNavigateToGraphs = () => setCurrentView('graphs')
+  const handleNavigateToSettings = () => setCurrentView('settings')
+  const handleBackToHome = () => setCurrentView('home')
 
   return (
     <div className="min-h-screen">
       {currentView === 'auth' ? (
-        <AuthForm 
-          onNavigateToSignup={handleNavigateToSignup} 
+        <AuthForm
+          onNavigateToSignup={handleNavigateToSignup}
           onLoginSuccess={handleLoginSuccess}
         />
       ) : currentView === 'signup' ? (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-          <CompleteSignupForm 
-            initialData={signupData} 
-            onBack={handleBackToAuth} 
+          <CompleteSignupForm
+            initialData={signupData}
+            onBack={handleBackToAuth}
           />
         </div>
       ) : currentView === 'home' ? (
         <div className="min-h-screen bg-gradient-to-r from-green-50 to-green-100">
-          <HomePage 
-            user={user} 
+          <HomePage
+            user={user}
             onLogout={handleLogout}
             onNavigateToChat={handleNavigateToChat}
             onNavigateToHistory={handleNavigateToHistory}
@@ -79,24 +78,13 @@ function App() {
           />
         </div>
       ) : currentView === 'chat' ? (
-        <ChatPage 
-          onBack={handleBackToHome}
-        />
+        <ChatPage user={user} onBack={handleBackToHome} />
       ) : currentView === 'history' ? (
-        <HistoryPage 
-          user={user}
-          onBack={handleBackToHome}
-        />
+        <HistoryPage user={user} onBack={handleBackToHome} />
       ) : currentView === 'graphs' ? (
-        <GraphsPage 
-          user={user}
-          onBack={handleBackToHome}
-        />
+        <GraphsPage user={user} onBack={handleBackToHome} />
       ) : currentView === 'settings' ? (
-        <SettingsPage 
-          user={user}
-          onBack={handleBackToHome}
-        />
+        <SettingsPage user={user} onBack={handleBackToHome} />
       ) : null}
     </div>
   )

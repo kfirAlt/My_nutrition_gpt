@@ -20,19 +20,20 @@ function AuthForm({ onNavigateToSignup, onLoginSuccess }) {
         password,
       })
 
-      if (error) {
+      if (error || !data.session) {
         setMessage('Invalid email or password. Please try again or create a new account.')
       } else {
         setMessage('Sign in successful!')
         setEmail('')
         setPassword('')
+        console.log("Logged in user:", data.session.user)
 
         setTimeout(() => {
-          onLoginSuccess(data.user)
+          onLoginSuccess(data.session.user)
         }, 1000)
       }
     } catch (error) {
-      setMessage('Invalid email or password. Please try again or create a new account.')
+      setMessage('Unexpected error. Please try again.')
     } finally {
       setLoading(false)
     }

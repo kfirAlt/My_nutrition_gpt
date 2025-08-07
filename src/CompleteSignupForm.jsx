@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient.js'
 
 function CompleteSignupForm({ initialData, onBack }) {
@@ -37,11 +37,13 @@ function CompleteSignupForm({ initialData, onBack }) {
         password: formData.password,
       })
 
-      if (authError) {
-        setMessage(`Authentication Error: ${authError.message}`)
+      if (authError || !authData?.user) {
+        setMessage(`Authentication Error: ${authError?.message || 'Unknown error'}`)
         setLoading(false)
         return
       }
+
+      console.log("New user:", authData.user)
 
       const { data: userData, error: userError } = await supabase
         .from('User')
@@ -79,15 +81,15 @@ function CompleteSignupForm({ initialData, onBack }) {
         return
       }
 
-      try {
-        await fetch('https://n8n-4mn8.onrender.com/webhook/calculate_bmr_tdee', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: authData.user.id })
-        })
-      } catch (error) {
-        console.log('Webhook request failed:', error)
-      }
+      // שליפה יזומה של session אחרי ההרשמה
+      const { data: sessionData } = await supabase.auth.getSession()
+      console.log("Session after sign-up:", sessionData)
+
+      await fetch('https://n8n-4mn8.onrender.com/webhook/calculate_bmr_tdee', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: authData.user.id })
+      })
 
       setMessage('Account created successfully! Please check your email for verification.')
       setTimeout(() => { onBack() }, 2000)
