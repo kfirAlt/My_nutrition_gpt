@@ -85,7 +85,7 @@ function CompleteSignupForm({ initialData, onBack }) {
       const { data: sessionData } = await supabase.auth.getSession()
       console.log("Session after sign-up:", sessionData)
 
-      await fetch('https://n8n-4mn8.onrender.com/webhook/calculate_bmr_tdee', {
+      await fetch('https://mynutritiongpt.app.n8n.cloud/webhook/bmr_tdee_calc', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: authData.user.id })

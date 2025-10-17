@@ -20,9 +20,9 @@ function ChatPage({ user, onBack }) {
       const { data } = await supabase.auth.getSession()
       if (data?.session) {
         setSession(data.session)
-        console.log("Session active:", data.session)
+        console.log('[auth] Session active:', data.session)
       } else {
-        console.warn("No active session")
+        console.warn('[auth] No active session')
       }
     }
     fetchSession()
@@ -49,36 +49,16 @@ function ChatPage({ user, onBack }) {
       let body = {}
 
       if (clarificationId) {
-        const { data: clarificationData } = await supabase
-          .from('MealClarification')
-          .select('answers, current_index')
-          .eq('id', clarificationId)
-          .single()
-
-        const updatedAnswers = [...clarificationData.answers]
-        updatedAnswers[clarificationData.current_index] = trimmedInput
-
-        endpoint = 'https://n8n-4mn8.onrender.com/webhook/clarification_answer'
+        // תשובה לשאלת הבהרה → שולחים לוורקפלואו השני
+        endpoint = 'https://mynutritiongpt.app.n8n.cloud/webhook/clarification'
         body = {
           clarification_id: clarificationId,
           user_id: user?.id,
-          answer: trimmedInput,
-          answers: updatedAnswers,
-          current_index: clarificationData.current_index
+          answer: trimmedInput
         }
       } else {
-        const { data: clarificationData } = await supabase
-          .from('MealClarification')
-          .select('id')
-          .eq('user_id', user?.id)
-          .eq('status', 'pending')
-          .maybeSingle()
-
-        if (clarificationData) {
-          setClarificationId(clarificationData.id)
-        }
-
-        endpoint = 'https://n8n-4mn8.onrender.com/webhook/chat_nutrition'
+        // הודעה ראשונה → שולחים לוורקפלואו הראשון
+        endpoint = 'https://mynutritiongpt.app.n8n.cloud/webhook/chat_nutrition'
         body = {
           user_id: user?.id,
           message: trimmedInput,
@@ -86,16 +66,30 @@ function ChatPage({ user, onBack }) {
         }
       }
 
+      console.log('→ sending', { endpoint, body })
+
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       })
 
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+      const status = response.status
+      const ct = response.headers.get('content-type') || ''
+      const resText = await response.text()
+      console.log('← response', { status, contentType: ct, rawBody: resText })
 
-      const data = await response.json()
+      if (!response.ok) throw new Error(`HTTP error! status: ${status}`)
 
+      let data = {}
+      if (resText) {
+        try { data = JSON.parse(resText) }
+        catch { data = { response: resText } }
+      }
+
+      // --- חוזה אחיד ---
+
+      // (1) יש שאלה: {clarification_id, question}
       if (data.clarification_id && data.question) {
         setClarificationId(data.clarification_id)
         setMessages(prev => [...prev, {
@@ -104,32 +98,34 @@ function ChatPage({ user, onBack }) {
           content: data.question,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }])
-      } else if (clarificationId) {
-        if (data.next_clarification_id && data.next_question) {
-          setClarificationId(data.next_clarification_id)
-          setMessages(prev => [...prev, {
-            id: Date.now() + 1,
-            type: 'bot',
-            content: data.next_question,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          }])
-        } else {
-          setClarificationId(null)
-          setMessages(prev => [...prev, {
-            id: Date.now() + 1,
-            type: 'bot',
-            content: data.response || "Thanks! I've processed your answer.",
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          }])
-        }
-      } else {
+        return
+      }
+
+      // (2) סיום: {response, end_clarification:true}
+      if (typeof data.response === 'string') {
         setMessages(prev => [...prev, {
           id: Date.now() + 1,
           type: 'bot',
-          content: data.response || "Thanks! I've updated your meal info.",
+          content: data.response,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }])
+
+        if (data.end_clarification) {
+          console.log('[loop] ending clarification, clearing id')
+          setClarificationId(null)
+        }
+        return
       }
+
+      // (3) לא צפוי
+      console.warn('[contract] unexpected payload', data)
+      setMessages(prev => [...prev, {
+        id: Date.now() + 1,
+        type: 'bot',
+        content: "Sorry, I'm having trouble processing your request right now. Please try again in a moment.",
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }])
+
     } catch (error) {
       console.error('Error sending message to n8n:', error)
       setMessages(prev => [...prev, {
@@ -147,7 +143,6 @@ function ChatPage({ user, onBack }) {
   const handleQuickAction = (suggestion) => {
     setInputMessage(suggestion)
   }
-
 
   return (
     <div className="min-h-screen bg-green-50 flex flex-col">
